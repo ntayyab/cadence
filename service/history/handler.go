@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/pborman/uuid"
 	"github.com/uber/cadence/.gen/go/health"
@@ -668,21 +669,19 @@ func (h *Handler) DescribeHistoryHost(
 	h.startWG.Wait()
 
 	numOfItemsInCacheByID, numOfItemsInCacheByName := h.domainCache.GetCacheSize()
-	status := ""
-	if h.controller.isStarted > 0 {
-		status += "started,"
-	} else {
-		status += "not started,"
-	}
-	if h.controller.isStopped > 0 {
-		status += "stopped,"
-	} else {
-		status += "not stopped,"
-	}
-	if h.controller.isStopping {
-		status += "stopping"
-	} else {
-		status += "not stopping"
+	status := atomic.LoadInt32(&h.controller.status)
+	statusStr := ""
+	switch status {
+	case common.DaemonStatusInitialized:
+		statusStr = "initialized"
+	case common.DaemonStatusStarted:
+		statusStr = "started"
+	case common.DaemonStatusStopped:
+		statusStr = "stopped"
+	default:
+		return nil, &gen.InternalServiceError{
+			Message: fmt.Sprintf("unknown status %v", status),
+		}
 	}
 
 	resp = &gen.DescribeHistoryHostResponse{
@@ -692,7 +691,7 @@ func (h *Handler) DescribeHistoryHost(
 			NumOfItemsInCacheByID:   &numOfItemsInCacheByID,
 			NumOfItemsInCacheByName: &numOfItemsInCacheByName,
 		},
-		ShardControllerStatus: &status,
+		ShardControllerStatus: common.StringPtr(statusStr),
 		Address:               common.StringPtr(h.GetHostInfo().GetAddress()),
 	}
 	return resp, nil
