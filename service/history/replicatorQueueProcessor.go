@@ -23,6 +23,7 @@ package history
 import (
 	ctx "context"
 	"errors"
+	"runtime/debug"
 	"time"
 
 	"github.com/uber/cadence/.gen/go/replicator"
@@ -151,6 +152,15 @@ func (p *replicatorQueueProcessorImpl) process(
 		}
 		return metrics.ReplicatorTaskSyncActivityScope, err
 	case persistence.ReplicationTaskTypeHistory:
+		defer func() {
+			if r := recover(); r != nil {
+				st := string(debug.Stack())
+				p.logger.Error("Panic is captured",
+					tag.SysStackTrace(st),
+					tag.Value(task))
+				panic(r)
+			}
+		}()
 		err := p.processHistoryReplicationTask(task)
 		if _, ok := err.(*shared.EntityNotExistsError); ok {
 			err = errHistoryNotFoundTask
