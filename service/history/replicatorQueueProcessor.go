@@ -22,6 +22,7 @@ package history
 
 import (
 	ctx "context"
+	"encoding/json"
 	"errors"
 	"runtime/debug"
 	"time"
@@ -155,9 +156,10 @@ func (p *replicatorQueueProcessorImpl) process(
 		defer func() {
 			if r := recover(); r != nil {
 				st := string(debug.Stack())
+				test, _ := json.Marshal(task)
 				p.logger.Error("Panic is captured",
 					tag.SysStackTrace(st),
-					tag.Value(task))
+					tag.Name(string(test)))
 				panic(r)
 			}
 		}()
