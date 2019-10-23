@@ -21,7 +21,9 @@
 package messaging
 
 import (
+	"encoding/json"
 	"errors"
+	"runtime/debug"
 
 	"github.com/Shopify/sarama"
 	"github.com/uber/cadence/.gen/go/indexer"
@@ -115,6 +117,18 @@ func (p *kafkaProducer) getProducerMessage(message interface{}) (*sarama.Produce
 	switch message.(type) {
 	case *replicator.ReplicationTask:
 		task := message.(*replicator.ReplicationTask)
+
+		defer func() {
+			if r := recover(); r != nil {
+				st := string(debug.Stack())
+				test, _ := json.Marshal(task)
+				p.logger.Error("Panic is captured22",
+					tag.SysStackTrace(st),
+					tag.Name(string(test)))
+				panic(r)
+			}
+		}()
+
 		payload, err := p.serializeThrift(task)
 		if err != nil {
 			return nil, err
